@@ -16,6 +16,7 @@ from handlers import (
     user_callbacks,
     admin_menu,
     admin_channels,
+    admin_add_channel,
     admin_welcome,
 )
 
@@ -51,6 +52,7 @@ async def main():
     dp.include_router(user_callbacks.router)
     dp.include_router(admin_menu.router)
     dp.include_router(admin_channels.router)
+    dp.include_router(admin_add_channel.router)
     dp.include_router(admin_welcome.router)
 
     logger.info("Бот запускается...")

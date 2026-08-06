@@ -8,6 +8,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 def admin_main_menu() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.button(text="📡 Каналы сети", callback_data="adm:channels")
+    kb.button(text="➕ Добавить канал вручную", callback_data="adm:add_channel")
     kb.button(text="✉️ Приветственные цепочки", callback_data="adm:chains")
     kb.button(text="🔒 Замок-доступ (быстрый вход)", callback_data="adm:chains")
     kb.button(text="ℹ️ Помощь", callback_data="adm:help")
@@ -26,6 +27,7 @@ def back_to_menu() -> InlineKeyboardMarkup:
 # ---------------------------------------------------------------------- #
 def channels_list_menu(channels) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
+    kb.button(text="➕ Добавить канал вручную", callback_data="adm:add_channel")
     for ch in channels:
         icon = "🔗" if ch["invite_link"] else "⚠️"
         kb.button(text=f"{icon} {ch['title']}", callback_data=f"adm:channel:{ch['chat_id']}")
@@ -42,6 +44,18 @@ def channel_card_menu(chat_id: int, has_link: bool) -> InlineKeyboardMarkup:
         kb.button(text="🔗 Создать реф-ссылку", callback_data=f"adm:genlink:{chat_id}")
     kb.button(text="✉️ Настроить приветствие", callback_data=f"adm:chain_edit:{chat_id}")
     kb.button(text="⬅️ К списку каналов", callback_data="adm:channels")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+# ---------------------------------------------------------------------- #
+#  Ручное подключение канала
+# ---------------------------------------------------------------------- #
+def add_channel_menu() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="📨 Переслать пост из канала", callback_data="adm:add_by_forward")
+    kb.button(text="🆔 Ввести ID канала", callback_data="adm:add_by_id")
+    kb.button(text="⬅️ В меню", callback_data="adm:menu")
     kb.adjust(1)
     return kb.as_markup()
 
