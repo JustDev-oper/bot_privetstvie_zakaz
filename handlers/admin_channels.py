@@ -105,3 +105,42 @@ async def generate_link(call: CallbackQuery, db: Database, bot: Bot):
         reply_markup=kb.channel_card_menu(chat_id, True),
     )
     await call.answer("Готово!")
+
+
+@router.callback_query(F.data.startswith("adm:delchannel:"))
+async def ask_delete_channel(call: CallbackQuery, db: Database):
+    chat_id = int(call.data.split(":")[2])
+    ch = await db.get_channel(chat_id)
+    if not ch:
+        await call.answer("Канал не найден", show_alert=True)
+        return
+    await call.message.edit_text(
+        f"⚠️ Отключить канал «{ch['title']}» от сети?\n\n"
+        "Вместе с ним удалятся его реф-ссылка, приветственная цепочка, настройки "
+        "замка (если он был условием или наградой в других цепочках — там замок "
+        "просто выключится) и история заявок по этому каналу. Отменить нельзя.",
+        reply_markup=kb.delchannel_confirm_menu(chat_id),
+    )
+    await call.answer()
+
+
+@router.callback_query(F.data.startswith("adm:delchannel_yes:"))
+async def confirm_delete_channel(call: CallbackQuery, db: Database):
+    chat_id = int(call.data.split(":")[2])
+    ch = await db.get_channel(chat_id)
+    title = ch["title"] if ch else str(chat_id)
+
+    await db.delete_channel_cascade(chat_id)
+
+    channels = await db.list_channels()
+    if channels:
+        await call.message.edit_text(
+            f"🗑 Канал «{title}» отключён от сети.",
+            reply_markup=kb.channels_list_menu(channels),
+        )
+    else:
+        await call.message.edit_text(
+            f"🗑 Канал «{title}» отключён от сети.\n\nКаналов в сети больше нет.",
+            reply_markup=kb.back_to_menu(),
+        )
+    await call.answer("Удалено")

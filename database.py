@@ -85,6 +85,29 @@ class Database:
         )
         await self._conn.commit()
 
+    async def delete_channel_cascade(self, chat_id: int) -> None:
+        """
+        Полностью убирает канал из сети: его собственную приветственную цепочку
+        (шаги и условия замка удалятся каскадно по FK), упоминания этого канала
+        как условия в чужих замках, ссылки на него как на канал-награду,
+        историю заявок и отложенные одноразовые инвайты.
+        """
+        chain = await self.get_chain_by_source(chat_id)
+        if chain:
+            await self._conn.execute("DELETE FROM welcome_chains WHERE id=?", (chain["id"],))
+
+        await self._conn.execute("DELETE FROM lock_required_channels WHERE channel_id=?", (chat_id,))
+
+        await self._conn.execute(
+            "UPDATE welcome_chains SET lock_enabled=0, reward_channel_id=NULL WHERE reward_channel_id=?",
+            (chat_id,),
+        )
+
+        await self._conn.execute("DELETE FROM join_requests WHERE channel_id=?", (chat_id,))
+        await self._conn.execute("DELETE FROM pending_invite_links WHERE reward_channel_id=?", (chat_id,))
+        await self._conn.execute("DELETE FROM channels WHERE chat_id=?", (chat_id,))
+        await self._conn.commit()
+
     async def remove_channel(self, chat_id: int) -> None:
         await self._conn.execute("DELETE FROM channels WHERE chat_id=?", (chat_id,))
         await self._conn.commit()

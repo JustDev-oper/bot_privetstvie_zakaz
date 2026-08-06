@@ -43,7 +43,16 @@ def channel_card_menu(chat_id: int, has_link: bool) -> InlineKeyboardMarkup:
     else:
         kb.button(text="🔗 Создать реф-ссылку", callback_data=f"adm:genlink:{chat_id}")
     kb.button(text="✉️ Настроить приветствие", callback_data=f"adm:chain_edit:{chat_id}")
+    kb.button(text="🗑 Отключить канал", callback_data=f"adm:delchannel:{chat_id}")
     kb.button(text="⬅️ К списку каналов", callback_data="adm:channels")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def delchannel_confirm_menu(chat_id: int) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="✅ Да, отключить", callback_data=f"adm:delchannel_yes:{chat_id}")
+    kb.button(text="❌ Отмена", callback_data=f"adm:channel:{chat_id}")
     kb.adjust(1)
     return kb.as_markup()
 
