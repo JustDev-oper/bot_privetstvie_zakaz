@@ -70,11 +70,13 @@ async def channel_card(call: CallbackQuery, db: Database):
     if not ch:
         await call.answer("Канал не найден", show_alert=True)
         return
+    chain = await db.get_chain_by_source(chat_id)
+    has_chain = bool(chain) and bool(await db.get_chain_steps(chain["id"]))
     link_line = f"🔗 <code>{ch['invite_link']}</code>" if ch["invite_link"] else "⚠️ Реф-ссылка ещё не создана"
     await call.message.edit_text(
         f"📢 <b>{ch['title']}</b>\nID: <code>{ch['chat_id']}</code>\n{link_line}",
         parse_mode="HTML",
-        reply_markup=kb.channel_card_menu(chat_id, bool(ch["invite_link"])),
+        reply_markup=kb.channel_card_menu(chat_id, bool(ch["invite_link"]), has_chain),
     )
     await call.answer()
 
@@ -99,10 +101,12 @@ async def generate_link(call: CallbackQuery, db: Database, bot: Bot):
 
     await db.set_channel_invite_link(chat_id, link_obj.invite_link)
     ch = await db.get_channel(chat_id)
+    chain = await db.get_chain_by_source(chat_id)
+    has_chain = bool(chain) and bool(await db.get_chain_steps(chain["id"]))
     await call.message.edit_text(
         f"✅ Реф-ссылка создана для «{ch['title']}»:\n🔗 <code>{ch['invite_link']}</code>",
         parse_mode="HTML",
-        reply_markup=kb.channel_card_menu(chat_id, True),
+        reply_markup=kb.channel_card_menu(chat_id, True, has_chain),
     )
     await call.answer("Готово!")
 

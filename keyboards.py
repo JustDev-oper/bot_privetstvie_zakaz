@@ -36,13 +36,15 @@ def channels_list_menu(channels) -> InlineKeyboardMarkup:
     return kb.as_markup()
 
 
-def channel_card_menu(chat_id: int, has_link: bool) -> InlineKeyboardMarkup:
+def channel_card_menu(chat_id: int, has_link: bool, has_chain: bool = False) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     if has_link:
         kb.button(text="🔄 Перевыпустить реф-ссылку", callback_data=f"adm:genlink:{chat_id}")
     else:
         kb.button(text="🔗 Создать реф-ссылку", callback_data=f"adm:genlink:{chat_id}")
     kb.button(text="✉️ Настроить приветствие", callback_data=f"adm:chain_edit:{chat_id}")
+    if has_chain:
+        kb.button(text="👀 Посмотреть пост", callback_data=f"adm:chain_preview:{chat_id}")
     kb.button(text="🗑 Отключить канал", callback_data=f"adm:delchannel:{chat_id}")
     kb.button(text="⬅️ К списку каналов", callback_data="adm:channels")
     kb.adjust(1)
@@ -72,10 +74,11 @@ def add_channel_menu() -> InlineKeyboardMarkup:
 # ---------------------------------------------------------------------- #
 #  Конструктор цепочки приветствий
 # ---------------------------------------------------------------------- #
-def chain_builder_menu(has_steps: bool) -> InlineKeyboardMarkup:
+def chain_builder_menu(has_steps: bool, chat_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.button(text="➕ Добавить сообщение в цепочку", callback_data="chain:add_step")
     if has_steps:
+        kb.button(text="👀 Посмотреть пост", callback_data=f"adm:chain_preview:{chat_id}")
         kb.button(text="🔒 Настроить обязательную подписку", callback_data="chain:lock_setup")
         kb.button(text="✅ Сохранить и включить", callback_data="chain:save")
     kb.button(text="🚫 Отмена", callback_data="adm:channels")

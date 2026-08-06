@@ -1,10 +1,11 @@
-from aiogram import Router, F
+from aiogram import Router, F, Bot
 from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.context import FSMContext
 
 from database import Database
 import keyboards as kb
 from states import ChainBuilder
+from utils.chain_sender import send_welcome_chain
 
 router = Router(name="admin_welcome")
 
@@ -56,8 +57,37 @@ async def open_chain_builder(call: CallbackQuery, db: Database, state: FSMContex
         "Добавляйте посты по очереди — форматирование, фото/видео/кружочки/голосовые "
         "сохранятся 1-в-1 ✨"
     )
-    await call.message.edit_text(text, parse_mode="HTML", reply_markup=kb.chain_builder_menu(bool(steps)))
+    await call.message.edit_text(text, parse_mode="HTML", reply_markup=kb.chain_builder_menu(bool(steps), chat_id))
     await call.answer()
+
+
+# ---------------------------------------------------------------------- #
+#  Предпросмотр поста для админа
+# ---------------------------------------------------------------------- #
+@router.callback_query(F.data.startswith("adm:chain_preview:"))
+async def preview_chain(call: CallbackQuery, db: Database, bot: Bot):
+    chat_id = int(call.data.split(":")[2])
+    chain = await db.get_chain_by_source(chat_id)
+    if not chain:
+        await call.answer("Для этого канала ещё нет цепочки", show_alert=True)
+        return
+
+    steps = await db.get_chain_steps(chain["id"])
+    if not steps:
+        await call.answer("В цепочке пока нет ни одного сообщения", show_alert=True)
+        return
+
+    await call.answer("👀 Отправляю предпросмотр вам в личные сообщения…")
+    try:
+        await send_welcome_chain(bot, db, call.from_user.id, chain, instant=True)
+    except Exception:
+        await call.message.answer(
+            "⚠️ Не удалось отправить предпросмотр в личные сообщения. "
+            "Нажмите /start в диалоге с ботом и повторите."
+        )
+        return
+
+    await call.message.answer("✅ Предпросмотр отправлен выше в этом же чате с ботом ⬆️")
 
 
 # ---------------------------------------------------------------------- #
@@ -108,7 +138,7 @@ async def receive_step_delay(call: CallbackQuery, db: Database, state: FSMContex
     steps = await db.get_chain_steps(data["chain_id"])
     await call.message.edit_text(
         f"✅ Добавлено! В цепочке сейчас {len(steps)} сообщений 📨\n\nЧто дальше?",
-        reply_markup=kb.chain_builder_menu(True),
+        reply_markup=kb.chain_builder_menu(True, data["chat_id"]),
     )
     await call.answer()
 

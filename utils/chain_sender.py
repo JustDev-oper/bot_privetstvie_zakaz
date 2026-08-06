@@ -22,12 +22,15 @@ _SEND_MAP = {
 }
 
 
-async def send_welcome_chain(bot: Bot, db: Database, user_id: int, chain_row) -> None:
+async def send_welcome_chain(bot: Bot, db: Database, user_id: int, chain_row, instant: bool = False) -> None:
     """
     Отправляет пользователю всю цепочку приветственных постов по порядку,
     соблюдая заданные админом задержки между сообщениями.
     К последнему сообщению цепочки, если включён замок, прикрепляется
     клавиатура со ссылками на обязательные каналы + кнопка проверки.
+
+    instant=True — режим предпросмотра для админа: задержки между шагами
+    пропускаются, сообщения уходят одно за другим сразу.
     """
     steps = await db.get_chain_steps(chain_row["id"])
     if not steps:
@@ -45,7 +48,7 @@ async def send_welcome_chain(bot: Bot, db: Database, user_id: int, chain_row) ->
     last_index = len(steps) - 1
 
     for i, step in enumerate(steps):
-        if step["delay_seconds"]:
+        if step["delay_seconds"] and not instant:
             await asyncio.sleep(step["delay_seconds"])
 
         method_name = _SEND_MAP.get(step["content_type"], "send_message")
