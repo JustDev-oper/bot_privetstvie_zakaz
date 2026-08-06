@@ -236,3 +236,107 @@ async def lock_disable(call: CallbackQuery, db: Database, state: FSMContext):
         reply_markup=kb.back_to_menu(),
     )
     await call.answer()
+
+
+# ---------------------------------------------------------------------- #
+#  Управление шагами: удаление постов из цепочки
+# ---------------------------------------------------------------------- #
+@router.callback_query(F.data.startswith("chain:manage_steps:"))
+async def manage_steps(call: CallbackQuery, db: Database, state: FSMContext):
+    chat_id = int(call.data.split(":")[2])
+    ch = await db.get_channel(chat_id)
+    if not ch:
+        await call.answer("Канал не найден", show_alert=True)
+        return
+
+    chain = await db.get_chain_by_source(chat_id)
+    if not chain:
+        await call.answer("Цепочка не найдена", show_alert=True)
+        return
+
+    steps = await db.get_chain_steps(chain["id"])
+    if not steps:
+        await call.answer("В цепочке нет ни одного поста", show_alert=True)
+        return
+
+    # Сохраняем chat_id и chain_id в стейт (на случай, если зашли не через конструктор)
+    await state.update_data(chat_id=chat_id, chain_id=chain["id"])
+
+    await call.message.edit_text(
+        f"🗑 <b>Удаление постов из цепочки</b> «{ch['title']}»\n\n"
+        f"Нажмите на пост, который хотите удалить:",
+        parse_mode="HTML",
+        reply_markup=kb.chain_steps_list_menu(steps, chat_id),
+    )
+    await call.answer()
+
+
+@router.callback_query(F.data.startswith("chain:delete_step:"))
+async def delete_step_confirm(call: CallbackQuery, db: Database):
+    parts = call.data.split(":")
+    step_id = int(parts[2])
+    chat_id = int(parts[3])
+
+    # Находим шаг для отображения информации
+    chain = await db.get_chain_by_source(chat_id)
+    if not chain:
+        await call.answer("Цепочка не найдена", show_alert=True)
+        return
+
+    steps = await db.get_chain_steps(chain["id"])
+    step = next((s for s in steps if s["id"] == step_id), None)
+    if not step:
+        await call.answer("Пост уже удалён или не найден", show_alert=True)
+        return
+
+    content_icons = {
+        "text": "📝", "photo": "🖼", "video": "🎥",
+        "video_note": "⭕", "voice": "🎙", "document": "📎", "animation": "🎞",
+    }
+    icon = content_icons.get(step["content_type"], "📨")
+    preview = (step["text"] or "")[:60].replace("\n", " ")
+    preview_str = f"\n«{preview}»" if preview else ""
+
+    await call.message.edit_text(
+        f"⚠️ Вы уверены, что хотите удалить пост #{step['step_order'] + 1}?\n"
+        f"{icon} {step['content_type']}{preview_str}\n\n"
+        "Это действие необратимо.",
+        reply_markup=kb.delete_step_confirm_menu(step_id, chat_id),
+    )
+    await call.answer()
+
+
+@router.callback_query(F.data.startswith("chain:delete_step_yes:"))
+async def delete_step_execute(call: CallbackQuery, db: Database, state: FSMContext):
+    parts = call.data.split(":")
+    step_id = int(parts[2])
+    chat_id = int(parts[3])
+
+    await db.delete_chain_step(step_id)
+
+    chain = await db.get_chain_by_source(chat_id)
+    if not chain:
+        await call.answer("✅ Пост удалён", show_alert=True)
+        return
+
+    steps = await db.get_chain_steps(chain["id"])
+    ch = await db.get_channel(chat_id)
+
+    # Обновляем next_order в стейте
+    await state.update_data(next_order=len(steps))
+
+    if not steps:
+        # Цепочка пустая — возвращаем в конструктор
+        await call.message.edit_text(
+            f"✅ Пост удалён. Цепочка для «{ch['title'] if ch else chat_id}» теперь пуста.\n\n"
+            "Добавьте новые посты:",
+            reply_markup=kb.chain_builder_menu(False, chat_id),
+        )
+    else:
+        await call.message.edit_text(
+            f"✅ Пост удалён! В цепочке осталось <b>{len(steps)}</b> сообщений.\n\n"
+            "Выберите следующий пост для удаления или вернитесь назад:",
+            parse_mode="HTML",
+            reply_markup=kb.chain_steps_list_menu(steps, chat_id),
+        )
+    await call.answer("✅ Удалено")

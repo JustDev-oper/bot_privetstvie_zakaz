@@ -79,9 +79,45 @@ def chain_builder_menu(has_steps: bool, chat_id: int) -> InlineKeyboardMarkup:
     kb.button(text="➕ Добавить сообщение в цепочку", callback_data="chain:add_step")
     if has_steps:
         kb.button(text="👀 Посмотреть пост", callback_data=f"adm:chain_preview:{chat_id}")
+        kb.button(text="🗑 Удалить пост из цепочки", callback_data=f"chain:manage_steps:{chat_id}")
         kb.button(text="🔒 Настроить обязательную подписку", callback_data="chain:lock_setup")
         kb.button(text="✅ Сохранить и включить", callback_data="chain:save")
     kb.button(text="🚫 Отмена", callback_data="adm:channels")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def chain_steps_list_menu(steps, chat_id: int) -> InlineKeyboardMarkup:
+    """Показывает список шагов цепочки с кнопками удаления."""
+    kb = InlineKeyboardBuilder()
+    content_icons = {
+        "text": "📝",
+        "photo": "🖼",
+        "video": "🎥",
+        "video_note": "⭕",
+        "voice": "🎙",
+        "document": "📎",
+        "animation": "🎞",
+    }
+    for step in steps:
+        icon = content_icons.get(step["content_type"], "📨")
+        delay_str = ""
+        if step["delay_seconds"] > 0:
+            m, s = divmod(step["delay_seconds"], 60)
+            h, m = divmod(m, 60)
+            if h:
+                delay_str = f" (+{h}ч{m}м)"
+            elif m:
+                delay_str = f" (+{m}м)"
+            else:
+                delay_str = f" (+{s}с)"
+        label = (step["text"] or "")[:30].replace("\n", " ")
+        label_str = f" «{label}»" if label else ""
+        kb.button(
+            text=f"🗑 #{step['step_order'] + 1} {icon}{label_str}{delay_str}",
+            callback_data=f"chain:delete_step:{step['id']}:{chat_id}",
+        )
+    kb.button(text="⬅️ Назад к цепочке", callback_data=f"adm:chain_edit:{chat_id}")
     kb.adjust(1)
     return kb.as_markup()
 
@@ -94,6 +130,14 @@ def ask_delay_menu() -> InlineKeyboardMarkup:
     kb.button(text="⏱ 30 минут", callback_data="delay:1800")
     kb.button(text="⏱ 1 час", callback_data="delay:3600")
     kb.adjust(2)
+    return kb.as_markup()
+
+
+def delete_step_confirm_menu(step_id: int, chat_id: int) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="✅ Да, удалить", callback_data=f"chain:delete_step_yes:{step_id}:{chat_id}")
+    kb.button(text="❌ Отмена", callback_data=f"chain:manage_steps:{chat_id}")
+    kb.adjust(1)
     return kb.as_markup()
 
 

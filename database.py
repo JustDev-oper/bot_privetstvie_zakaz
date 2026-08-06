@@ -175,6 +175,28 @@ class Database:
         )
         return await cur.fetchall()
 
+    async def delete_chain_step(self, step_id: int) -> None:
+        """Удаляет шаг по id и переупорядочивает оставшиеся шаги цепочки."""
+        # Определяем chain_id и step_order удаляемого шага
+        cur = await self._conn.execute(
+            "SELECT chain_id, step_order FROM chain_steps WHERE id=?", (step_id,)
+        )
+        row = await cur.fetchone()
+        if not row:
+            return
+        chain_id = row["chain_id"]
+        deleted_order = row["step_order"]
+
+        await self._conn.execute("DELETE FROM chain_steps WHERE id=?", (step_id,))
+
+        # Сдвигаем step_order всех последующих шагов на -1
+        await self._conn.execute(
+            "UPDATE chain_steps SET step_order = step_order - 1 "
+            "WHERE chain_id=? AND step_order > ?",
+            (chain_id, deleted_order),
+        )
+        await self._conn.commit()
+
     async def set_chain_active(self, chain_id: int, active: bool) -> None:
         await self._conn.execute(
             "UPDATE welcome_chains SET is_active=? WHERE id=?", (int(active), chain_id)
