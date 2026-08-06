@@ -8,6 +8,36 @@ logger = logging.getLogger(__name__)
 router = Router(name="user_callbacks")
 
 
+async def _is_channel_member(bot: Bot, chat_id: int, user_id: int) -> bool:
+    """Спрашивает у Telegram актуальный статус пользователя в канале."""
+    try:
+        member = await bot.get_chat_member(chat_id, user_id)
+    except Exception:
+        # чаще всего "user not found" — бот никогда не видел этого пользователя
+        # в канале, это нормальный случай, а не ошибка
+        return False
+    return member.status in ("member", "administrator", "creator")
+
+
+async def _resolve_missing_channels(bot: Bot, db: Database, user_id: int, required_ids: list[int]) -> list[int]:
+    """
+    Кто ещё не выполнил условие. Сначала быстрая проверка по локальной таблице
+    заявок (join_requests). Если там записи нет — дополнительно спрашиваем
+    Telegram напрямую: пользователь мог быть в канале ещё до подключения бота
+    или вступить туда напрямую, минуя заявку через бота. Найденное членство
+    кешируем в join_requests, чтобы в следующий раз не дёргать API повторно.
+    """
+    missing = []
+    for cid in required_ids:
+        if await db.user_has_request(user_id, cid):
+            continue
+        if await _is_channel_member(bot, cid, user_id):
+            await db.add_join_request(user_id, cid)
+            continue
+        missing.append(cid)
+    return missing
+
+
 @router.callback_query(F.data == "user:check")
 async def check_subscription(call: CallbackQuery, db: Database, bot: Bot):
     user_id = call.from_user.id
@@ -27,6 +57,8 @@ async def check_subscription(call: CallbackQuery, db: Database, bot: Bot):
         required_ids = await db.get_lock_required_channels(chain["id"])
         if not required_ids:
             continue
+        # здесь — быстрая проверка только по локальной БД, без запросов к Telegram,
+        # чтобы не дёргать API по всем цепочкам сети при каждом нажатии кнопки
         missing = await db.get_missing_channels(user_id, required_ids)
         if not missing:
             matching_chain = chain
@@ -40,7 +72,9 @@ async def check_subscription(call: CallbackQuery, db: Database, bot: Bot):
         return
 
     required_ids = await db.get_lock_required_channels(matching_chain["id"])
-    missing = await db.get_missing_channels(user_id, required_ids)
+    # а вот для итоговой (уже выбранной) цепочки делаем полную проверку
+    # с учётом реального статуса в Telegram, а не только локальных заявок
+    missing = await _resolve_missing_channels(bot, db, user_id, required_ids)
 
     if missing:
         lines = ["🔸 Вы ещё не подали заявку в:"]
