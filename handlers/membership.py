@@ -3,14 +3,24 @@ from aiogram import Router, Bot
 from aiogram.types import ChatMemberUpdated
 from aiogram.filters import IS_MEMBER, IS_NOT_MEMBER, ADMINISTRATOR, KICKED
 
+from config import Config
 from database import Database
 
 logger = logging.getLogger(__name__)
 router = Router(name="membership")
 
 
+async def _notify_admins(bot: Bot, config: Config, db: Database, text: str) -> None:
+    admin_ids = set(config.admin_ids) | set(await db.list_admin_ids())
+    for admin_id in admin_ids:
+        try:
+            await bot.send_message(admin_id, text)
+        except Exception:
+            logger.warning("Не удалось отправить уведомление админу %s", admin_id)
+
+
 @router.my_chat_member(IS_NOT_MEMBER >> ADMINISTRATOR)
-async def bot_promoted_to_admin(event: ChatMemberUpdated, db: Database, bot: Bot):
+async def bot_promoted_to_admin(event: ChatMemberUpdated, db: Database, bot: Bot, config: Config):
     """
     Как только бота делают админом канала — канал автоматически попадает
     в реестр (шаг перед добавлением реф-ссылки, п.2.1 ТЗ).
@@ -18,6 +28,11 @@ async def bot_promoted_to_admin(event: ChatMemberUpdated, db: Database, bot: Bot
     chat = event.chat
     await db.upsert_channel(chat_id=chat.id, title=chat.title or str(chat.id))
     logger.info("Канал добавлен в реестр: %s (%s)", chat.title, chat.id)
+    await _notify_admins(
+        bot, config, db,
+        f"✅ Бота назначили администратором канала «{chat.title or chat.id}».\n"
+        "Канал автоматически добавлен в реестр бота.",
+    )
 
 
 @router.my_chat_member(ADMINISTRATOR >> (IS_NOT_MEMBER | KICKED))

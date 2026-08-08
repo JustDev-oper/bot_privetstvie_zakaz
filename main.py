@@ -37,7 +37,16 @@ async def main():
 
     flood_queue = FloodQueue(delay_seconds=config.flood_delay_seconds)
 
-    bot = Bot(token=config.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    # link_preview_is_disabled=True — превью ссылок отключено по умолчанию
+    # для КАЖДОГО сообщения, отправляемого ботом (все send_message/edit_text и т.п.),
+    # без необходимости прокидывать этот параметр в каждый вызов вручную.
+    bot = Bot(
+        token=config.bot_token,
+        default=DefaultBotProperties(
+            parse_mode=ParseMode.HTML,
+            link_preview_is_disabled=True,
+        ),
+    )
     dp = Dispatcher(storage=MemoryStorage())
 
     # Пробрасываем общие зависимости во все хендлеры через middleware-data aiogram 3

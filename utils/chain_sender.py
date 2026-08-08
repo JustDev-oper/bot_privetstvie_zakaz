@@ -58,7 +58,11 @@ async def send_welcome_chain(bot: Bot, db: Database, user_id: int, chain_row, in
         if i == last_index and chain_row["lock_enabled"] and required_ids:
             required_channels = [await db.get_channel(cid) for cid in required_ids]
             required_channels = [c for c in required_channels if c is not None]
-            markup = kb.user_lock_keyboard(required_channels, invite_links)
+            # Если каналы из условия замка были удалены из реестра, required_channels
+            # окажется пустым — тогда кнопку не показываем вовсе, иначе пользователь
+            # видит "Проверить подписку" без единой ссылки на канал.
+            if required_channels:
+                markup = kb.user_lock_keyboard(required_channels, invite_links)
 
         try:
             if step["content_type"] == "text":
