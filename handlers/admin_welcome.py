@@ -1,3 +1,6 @@
+import re
+from html import escape as html_escape
+
 from aiogram import Router, F, Bot
 from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.context import FSMContext
@@ -8,6 +11,20 @@ from states import ChainBuilder
 from utils.chain_sender import send_welcome_chain
 
 router = Router(name="admin_welcome")
+
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _safe_preview(raw_html_text: str, limit: int = 60) -> str:
+    """Готовит безопасный для HTML parse_mode превью текста поста.
+
+    step['text'] хранится как HTML (message.html_text), поэтому нельзя просто
+    обрезать строку — можно разорвать тег посередине и Telegram выдаст
+    'Can't parse entities'. Снимаем разметку и экранируем спецсимволы.
+    """
+    plain = _TAG_RE.sub("", raw_html_text or "")
+    plain = plain[:limit]
+    return html_escape(plain)
 
 
 def _extract_content(message: Message):
@@ -294,7 +311,7 @@ async def delete_step_confirm(call: CallbackQuery, db: Database):
         "video_note": "⭕", "voice": "🎙", "document": "📎", "animation": "🎞",
     }
     icon = content_icons.get(step["content_type"], "📨")
-    preview = (step["text"] or "")[:60].replace("\n", " ")
+    preview = _safe_preview(step["text"]).replace("\n", " ")
     preview_str = f"\n«{preview}»" if preview else ""
 
     await call.message.edit_text(
